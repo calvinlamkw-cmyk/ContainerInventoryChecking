@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>LOGIX AR Vision - Full Stack Wall AI Audit</title>
+    <title>LOGIX AR Vision - Precision Wall Audit</title>
     <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.2/build/mp4-muxer.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -33,12 +33,12 @@
     <div id="app-viewport">
         <div id="video-container">
             <div id="top-bar">
-                <div style="display:flex; align-items:center; gap:6px;"><span class="dot"></span> AI TRACKER</div>
-                <div class="version-pill">v2.1.0-AI</div>
+                <div style="display:flex; align-items:center; gap:6px;"><span class="dot"></span> AI AUDIT</div>
+                <div class="version-pill">v2.2.0-PRO</div>
                 <div id="time-display">00:00</div>
                 <button id="export-btn" onclick="toggleRecord()">EXPORT MP4</button>
             </div>
-            <video id="webcam" src="5658160-hd_1920_1080_24fps.mp4" autoplay playsinline muted loop crossorigin="anonymous"></video>
+            <video id="webcam" src="https://raw.githubusercontent.com/calvinlamkw-cmyk/ContainerInventoryChecking/main/5658160-hd_1920_1080_24fps.mp4" autoplay playsinline muted loop crossorigin="anonymous"></video>
             <canvas id="overlay-canvas"></canvas>
         </div>
 
@@ -48,7 +48,7 @@
                 <div style="font-size: 11px; color: #94A3B8; margin-bottom: 6px; display: flex; justify-content: space-between;">
                     <span>PHYSICAL STACK MAPPING</span><span id="error-count-text" style="color:#10B981;">0 ERRORS</span>
                 </div>
-                <div style="font-size: 16px; font-weight: 700; color: #F8FAFC; margin-bottom: 10px;">WALL SECTION B</div>
+                <div style="font-size: 16px; font-weight: 700; color: #F8FAFC; margin-bottom: 10px;">WALL SECTION A</div>
                 <div class="stack-matrix" id="live-matrix-grid"></div>
             </div>
         </div>
@@ -64,16 +64,10 @@
         let trackFrames = [];
         let isRecording = false;
 
-        // Fetch the multi-container tracking JSON with cache-busting timestamp
         fetch('wall_tracks.json?v=' + Date.now())
             .then(res => res.json())
-            .then(data => { 
-                trackFrames = data; 
-                console.log("Successfully loaded wall_tracks.json frames:", trackFrames.length);
-            })
-            .catch(err => {
-                console.warn("wall_tracks.json fetch failed, using dynamic simulation fallback.");
-            });
+            .then(data => { trackFrames = data; })
+            .catch(err => { console.warn("Using fallback telemetry."); });
 
         function resizeCanvas() {
             canvas.width = video.clientWidth;
@@ -93,14 +87,7 @@
         }
 
         function getFrameDataForTime(currentTime) {
-            if (!trackFrames || trackFrames.length === 0) {
-                return [
-                    { id: 1, detected_text: "MAXU 501428", box: [0.1, 0.1, 0.38, 0.35], tos_match: true },
-                    { id: 2, detected_text: "FALU 164813", box: [0.52, 0.1, 0.38, 0.35], tos_match: true },
-                    { id: 3, detected_text: "TEMU 998811", box: [0.1, 0.48, 0.38, 0.35], tos_match: false, expected_text: "TGHU 992211" },
-                    { id: 4, detected_text: "MSCU 112233", box: [0.52, 0.48, 0.38, 0.35], tos_match: true }
-                ];
-            }
+            if (!trackFrames || trackFrames.length === 0) return [];
             let closest = trackFrames[0];
             for (let f of trackFrames) {
                 if (Math.abs(f.timestamp - currentTime) < Math.abs(closest.timestamp - currentTime)) {
