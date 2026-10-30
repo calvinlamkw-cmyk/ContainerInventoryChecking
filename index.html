@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>LOGIX AR Vision - Automated Yard Wall Audit</title>
+    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.2/build/mp4-muxer.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #080C10; font-family: system-ui, -apple-system, sans-serif; color: #E2E8F0; }
+        #app-viewport { display: flex; width: 100vw; height: 100vh; }
+        #video-container { position: relative; flex: 1; height: 100%; background: #000; display: flex; align-items: center; justify-content: center; }
+        #webcam { width: 100%; height: 100%; object-fit: contain; }
+        #overlay-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        #side-panel { width: 400px; height: 100%; background: #0F172A; border-left: 1px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; padding: 20px; gap: 16px; z-index: 10; overflow-y: auto; }
+        .panel-header { font-size: 14px; font-weight: 700; color: #38BDF8; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); display: flex; justify-content: space-between; align-items: center; }
+        .badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: 600; text-transform: uppercase; background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .badge.alert { background: rgba(239, 68, 68, 0.2); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.4); animation: pulse 1s infinite; }
+        
+        .stack-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .matrix-cell { background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 6px; font-size: 11px; }
+        .matrix-cell.match { border-color: #10B981; color: #10B981; }
+        .matrix-cell.mismatch { border-color: #EF4444; color: #EF4444; background: rgba(239, 68, 68, 0.15); }
+
+        #top-bar { position: absolute; top: 16px; left: 16px; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); font-size: 12px; z-index: 10; display: flex; gap: 12px; align-items: center; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; box-shadow: 0 0 8px #10B981; }
+        #export-btn { background: #0284C7; color: #FFF; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; margin-left: 8px; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="app-viewport">
+        <div id="video-container">
+            <div id="top-bar">
+                <div style="display:flex; align-items:center; gap:6px;"><span class="dot"></span> AI TOS AUDIT ENGINE</div>
+                <div id="time-display">00:00</div>
+                <button id="export-btn" onclick="toggleRecord()">EXPORT MP4</button>
+            </div>
+            <!-- Update video filename to match your stack wall inspection video asset -->
+            <video id="webcam" src="5658160-hd_1920_1080_24fps.mp4" autoplay playsinline muted loop crossorigin="anonymous"></video>
+            <canvas id="overlay-canvas"></canvas>
+        </div>
+
+        <div id="side-panel">
+            <div class="panel-header">YARD WALL PROFILE <span id="audit-badge" class="badge alert">1 ERROR FOUND</span></div>
+            
+            <div style="background: rgba(30, 41, 59, 0.9); border: 1px solid #EF4444; border-radius: 12px; padding: 16px;">
+                <div style="font-size: 11px; color: #94A3B8; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                    <span>AI OCR SCANNER</span><span style="color:#EF4444;">DISCREPANCY DETECTED</span>
+                </div>
+                <div style="font-size: 16px; font-weight: 700; color: #F8FAFC; margin-bottom: 10px;" id="section-title">SECTION A-WALL</div>
+                <div class="stack-matrix" id="dynamic-matrix-grid">
+                    <!-- Populated dynamically from JSON -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('overlay-canvas');
+        const ctx = canvas.getContext('2d');
+        const timeDisplay = document.getElementById('time-display');
+        const exportBtn = document.getElementById('export-btn');
+
+        let auditData = null;
+        let isRecording = false;
+
+        // Fetch the dynamically generated audit matrix JSON
+        fetch('stack_audit_matrix.json')
+            .then(res => res.json())
+            .then(data => {
+                auditData = data;
+                buildSidePanelGrid(data.grid);
+            })
+            .catch(err => {
+                console.warn("stack_audit_matrix.json not found, using fallback demo data.");
+                // Fallback inline data if JSON isn't fetched yet
+                auditData = {
+                    grid: [
+                        { slot_id: "TIER-2_COL-1", detected_id: "MAXU 501428 9", tos_match: true, box: [0.1, 0.1, 0.4, 0.38] },
+                        { slot_id: "TIER-2_COL-2", detected_id: "FALU 164813 5", tos_match: true, box: [0.55, 0.1, 0.4, 0.38] },
+                        { slot_id: "TIER-1_COL-1", detected_id: "TEMU 998811 2", tos_match: false, expected_id: "TGHU 992211 0", box: [0.1, 0.52, 0.4, 0.38] },
+                        { slot_id: "TIER-1_COL-2", detected_id: "MSCU 112233 4", tos_match: true, box: [0.55, 0.52, 0.4, 0.38] }
+                    ]
+                };
+                buildSidePanelGrid(auditData.grid);
+            });
+
+        function buildSidePanelGrid(gridItems) {
+            const gridContainer = document.getElementById('dynamic-matrix-grid');
+            gridContainer.innerHTML = '';
+            gridItems.forEach(item => {
+                const cell = document.createElement('div');
+                cell.className = `matrix-cell ${item.tos_match ? 'match' : 'mismatch'}`;
+                if (item.tos_match) {
+                    cell.innerHTML = `<b>${item.detected_id}</b><br>${item.slot_id}: MATCH`;
+                } else {
+                    cell.innerHTML = `<b>${item.detected_id}</b><br>⚠️ Expected: ${item.expected_id}`;
+                }
+                gridContainer.appendChild(cell);
+            });
+        }
+
+        function resizeCanvas() {
+            canvas.width = video.clientWidth;
+            canvas.height = video.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        video.addEventListener('loadedmetadata', resizeCanvas);
+
+        function getRenderedVideoRect() {
+            const vw = video.videoWidth || 1920, vh = video.videoHeight || 1080;
+            const cw = video.clientWidth, ch = video.clientHeight;
+            const vRatio = vw / vh, cRatio = cw / ch;
+            let rw, rh, rx, ry;
+            if (cRatio > vRatio) { rh = ch; rw = rh * vRatio; rx = (cw - rw) / 2; ry = 0; }
+            else { rw = cw; rh = rw / vRatio; rx = 0; ry = (ch - rh) / 2; }
+            return { x: rx, y: ry, w: rw, h: rh };
+        }
+
+        function renderLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const t = video.currentTime;
+            timeDisplay.innerText = `00:${Math.floor(t).toString().padStart(2, '0')}`;
+            const vRect = getRenderedVideoRect();
+
+            if (auditData && auditData.grid) {
+                auditData.grid.forEach(item => {
+                    const box = item.box;
+                    const color = item.tos_match ? '#10B981' : '#EF4444';
+                    const x = vRect.x + (box[0] * vRect.w);
+                    const y = vRect.y + (box[1] * vRect.h);
+                    const w = box[2] * vRect.w;
+                    const h = box[3] * vRect.h;
+
+                    // Draw bounding box
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, w, h);
+
+                    // If mismatch, draw warning '!' icon
+                    if (!item.tos_match) {
+                        ctx.fillStyle = '#EF4444';
+                        ctx.beginPath();
+                        ctx.arc(x + w - 22, y + 22, 16, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.font = 'bold 18px sans-serif';
+                        ctx.fillText('!', x + w - 28, y + 28);
+                    }
+
+                    // Draw Header Tag
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y - 28, 160, 24);
+                    ctx.fillStyle = '#000';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.fillText(item.detected_id, x + 6, y - 14);
+                    ctx.font = '8px sans-serif';
+                    ctx.fillText(item.tos_match ? 'TOS: MATCHED' : 'TOS MISMATCH ⚠️', x + 6, y - 4);
+                });
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        function toggleRecord() { if (!isRecording) startRecording(); else stopRecording(); }
+        async function startRecording() { isRecording = true; exportBtn.innerText = "STOP & SAVE"; exportBtn.classList.add("recording"); video.currentTime = 0; await video.play(); }
+        function stopRecording() { isRecording = false; exportBtn.innerText = "EXPORT MP4"; exportBtn.classList.remove("recording"); }
+
+        video.addEventListener('play', () => { resizeCanvas(); requestAnimationFrame(renderLoop); });
+        window.addEventListener('load', () => { resizeCanvas(); renderLoop(); });
+    </script>
+</body>
+</html>

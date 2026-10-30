@@ -1,0 +1,55 @@
+{
+  "section": "YARD WALL SECTION A",
+  "total_scanned": 4,
+  "mismatches_found": 1,
+  "grid": [
+    {
+      "slot_id": "TIER-1_COL-1",
+      "detected_id": "MAXU 501428 9",
+      "tos_match": true,
+      "expected_id": "MAXU 501428 9",
+      "box": [
+        0.1,
+        0.1,
+        0.4,
+        0.38
+      ]
+    },
+    {
+      "slot_id": "TIER-1_COL-2",
+      "detected_id": "FALU 164813 5",
+      "tos_match": true,
+      "expected_id": "FALU 164813 5",
+      "box": [
+        0.55,
+        0.1,
+        0.4,
+        0.38
+      ]
+    },
+    {
+      "slot_id": "TIER-2_COL-1",
+      "detected_id": "TEMU 998811 2",
+      "tos_match": false,
+      "expected_id": "TGHU 992211 0",
+      "box": [
+        0.1,
+        0.53,
+        0.4,
+        0.38
+      ]
+    },
+    {
+      "slot_id": "TIER-2_COL-2",
+      "detected_id": "MSCU 112233 4",
+      "tos_match": true,
+      "expected_id": "MSCU 112233 4",
+      "box": [
+        0.55,
+        0.53,
+        0.4,
+        0.38
+      ]
+    }
+  ]
+}
