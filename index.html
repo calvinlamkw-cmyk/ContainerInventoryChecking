@@ -63,22 +63,27 @@
 
         let trackFrames = [];
         let isRecording = false;
+        let isRendering = false;
 
+        // Fetch telemetry tracking data
         fetch('wall_tracks.json?v=' + Date.now())
             .then(res => res.json())
             .then(data => { trackFrames = data; })
             .catch(err => { console.warn("Using fallback telemetry."); });
 
         function resizeCanvas() {
-            canvas.width = video.clientWidth;
-            canvas.height = video.clientHeight;
+            if (video.clientWidth > 0 && video.clientHeight > 0) {
+                canvas.width = video.clientWidth;
+                canvas.height = video.clientHeight;
+            }
         }
+
         window.addEventListener('resize', resizeCanvas);
         video.addEventListener('loadedmetadata', resizeCanvas);
 
         function getRenderedVideoRect() {
             const vw = video.videoWidth || 1920, vh = video.videoHeight || 1080;
-            const cw = video.clientWidth, ch = video.clientHeight;
+            const cw = video.clientWidth || canvas.width, ch = video.clientHeight || canvas.height;
             const vRatio = vw / vh, cRatio = cw / ch;
             let rw, rh, rx, ry;
             if (cRatio > vRatio) { rh = ch; rw = rh * vRatio; rx = (cw - rw) / 2; ry = 0; }
@@ -130,7 +135,9 @@
         }
 
         function renderLoop() {
+            resizeCanvas();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
             const t = video.currentTime;
             timeDisplay.innerText = `00:${Math.floor(t).toString().padStart(2, '0')}`;
             const vRect = getRenderedVideoRect();
@@ -167,15 +174,37 @@
                 ctx.fillText(item.detected_text, x + 6, y - 12);
             });
 
-            requestAnimationFrame(renderLoop);
+            if (!video.paused && !video.ended) {
+                requestAnimationFrame(renderLoop);
+            } else {
+                isRendering = false;
+            }
+        }
+
+        function startRenderLoop() {
+            if (!isRendering) {
+                isRendering = true;
+                requestAnimationFrame(renderLoop);
+            }
         }
 
         function toggleRecord() { if (!isRecording) startRecording(); else stopRecording(); }
         async function startRecording() { isRecording = true; exportBtn.innerText = "STOP & SAVE"; exportBtn.classList.add("recording"); video.currentTime = 0; await video.play(); }
         function stopRecording() { isRecording = false; exportBtn.innerText = "EXPORT MP4"; exportBtn.classList.remove("recording"); }
 
-        video.addEventListener('play', () => { resizeCanvas(); requestAnimationFrame(renderLoop); });
-        window.addEventListener('load', () => { resizeCanvas(); renderLoop(); });
+        // Event listeners to guarantee rendering runs smoothly on play/seek/load
+        video.addEventListener('play', startRenderLoop);
+        video.addEventListener('playing', startRenderLoop);
+        video.addEventListener('timeupdate', () => {
+            if (video.paused) {
+                renderLoop(); // Render single frames if paused / scrubbed
+            }
+        });
+
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            setTimeout(renderLoop, 500); // Initial draw pass once DOM settles
+        });
     </script>
 </body>
 </html>
